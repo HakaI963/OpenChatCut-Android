@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # OpenChatCut Android — guest packer (run in GitHub Actions).
 # Builds everything the APK ships in assets/occ/:
-#   guest/rootfs.tar.gz       Debian trixie arm64 base (debootstrap, Debian archive)
-#   guest/node.tar.gz         Node 24 arm64 runtime (official tarball)
+#   guest/rootfs.occ (gzip tar; .occ so aapt2 leaves the bytes alone)       Debian trixie arm64 base (debootstrap, Debian archive)
+#   guest/node.occ         Node 24 arm64 runtime (official tarball)
 #   guest/guest-server.mjs    esbuild bundle of upstream desktop/embedded-server.ts
 #   guest/bootstrap.sh        guest first-run script
 #   guest/package.json(+lock) for guest `npm ci`
@@ -21,8 +21,8 @@ mkdir -p "$OUT/guest" "$OUT/host/bin" "$OUT/host/libexec/proot"
 
 
 # ── 1) Debian trixie arm64 base (debootstrap; unpack-only, no guest configure) ──
-if [ "${SKIP_ROOTFS_BUILD:-0}" = "1" ] && [ -s "$OUT/guest/rootfs.tar.gz" ]; then
-  echo "rootfs.tar.gz cached"
+if [ "${SKIP_ROOTFS_BUILD:-0}" = "1" ] && [ -s "$OUT/guest/rootfs.occ" ]; then
+  echo "rootfs.occ cached"
 else
   rm -rf "$STAGE"; mkdir -p "$STAGE"
   DEBOOT="debootstrap"
@@ -40,18 +40,18 @@ else
   echo nameserver 1.1.1.1 > "$STAGE/rootfs/etc/resolv.conf"
   echo "OpenChatCut Android" > "$STAGE/rootfs/etc/hostname"
   printf '127.0.0.1\tlocalhost\n' > "$STAGE/rootfs/etc/hosts"
-  (cd "$STAGE/rootfs" && tar czf "$OUT/guest/rootfs.tar.gz" .)
-  echo "rootfs.tar.gz: $(du -h "$OUT/guest/rootfs.tar.gz" | cut -f1)"
+  (cd "$STAGE/rootfs" && tar czf "$OUT/guest/rootfs.occ" .)
+  echo "rootfs.tar.gz: $(du -h "$OUT/guest/rootfs.occ" | cut -f1)"
   rm -rf "$STAGE/rootfs"
 fi
 
 # ── 2) Node 24 arm64 (official tarball → tar.gz) ──
-if [ ! -s "$OUT/guest/node.tar.gz" ]; then
+if [ ! -s "$OUT/guest/node.occ" ]; then
   NODE_VER=v24.10.0
   rm -rf "$STAGE"; mkdir -p "$STAGE/node-x"
   curl -fsSL "https://nodejs.org/dist/${NODE_VER}/node-${NODE_VER}-linux-arm64.tar.gz" -o "$STAGE/node.tgz"
   tar xzf "$STAGE/node.tgz" -C "$STAGE/node-x"
-  (cd "$STAGE/node-x/node-${NODE_VER}-linux-arm64" && tar czf "$OUT/guest/node.tar.gz" .)
+  (cd "$STAGE/node-x/node-${NODE_VER}-linux-arm64" && tar czf "$OUT/guest/node.occ" .)
   rm -rf "$STAGE/node-x" "$STAGE/node.tgz"
 fi
 

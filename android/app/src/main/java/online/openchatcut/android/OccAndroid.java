@@ -160,7 +160,7 @@ public final class OccAndroid {
                 state("unpacking Debian rootfs (first run only)…");
                 File rootfsMarker = new File(base, ".rootfs_ok");
                 if (!rootfsMarker.exists()) {
-                    TarUtil.extractTgz(act.getAssets().open("occ/guest/rootfs.tar"), rootDir,
+                    TarUtil.extractTgz(act.getAssets().open("occ/guest/rootfs.occ"), rootDir,
                             n -> state("rootfs …" + n));
                     Files.write(Paths.get(rootfsMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 } else {
@@ -172,7 +172,7 @@ public final class OccAndroid {
                 state("unpacking Node runtime…");
                 File nodeMarker = new File(work, ".node_ok");
                 if (!nodeMarker.exists()) {
-                    TarUtil.extractTgz(act.getAssets().open("occ/guest/node.tar"), nodeDir,
+                    TarUtil.extractTgz(act.getAssets().open("occ/guest/node.occ"), nodeDir,
                             n -> state("node …" + n));
                     Files.write(Paths.get(nodeMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 }

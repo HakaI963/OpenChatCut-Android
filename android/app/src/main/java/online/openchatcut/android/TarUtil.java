@@ -19,9 +19,16 @@ final class TarUtil {
 
     static void extractTgz(InputStream raw, File destDir, Progress... cb) throws Exception {
         Files.createDirectories(Paths.get(destDir.getAbsolutePath()));
-        java.util.zip.GZIPInputStream gz = new java.util.zip.GZIPInputStream(new BufferedInputStream(raw, 1 << 17), 1 << 15);
-        readTar(gz, destDir, cb);
-        gz.close();
+        BufferedInputStream src = new BufferedInputStream(raw, 1 << 17);
+        src.mark(2);
+        int b0 = src.read();
+        int b1 = src.read();
+        src.reset();
+        InputStream in = (b0 == 0x1f && b1 == 0x8b)
+                ? new java.util.zip.GZIPInputStream(src, 1 << 15)   // gzip payload
+                : src;                                             // plain tar (aapt2 pre-un-gzips *.gz)
+        readTar(in, destDir, cb);
+        in.close();
     }
 
     static boolean isGzip(InputStream in) {
