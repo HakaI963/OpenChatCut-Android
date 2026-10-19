@@ -64,12 +64,6 @@ cp "$SRC_DIR/mobile/guest/bootstrap.sh" "$OUT/guest/bootstrap.sh"
 chmod +x "$OUT/guest/bootstrap.sh"
 cp "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$OUT/guest/"
 
-# ── 3b) single payload archive: one AssetManager.open() at runtime ──
-( cd "$OUT/guest" && tar cf "$OUT/guest-files.occ.new" bootstrap.sh guest-server.mjs package.json package-lock.json && mv "$OUT/guest-files.occ.new" "$OUT/guest-files.occ" )
-if [ -d "$OUT/guest/dist" ] && [ -n "$(ls -A "$OUT/guest/dist" 2>/dev/null)" ]; then
-  ( cd "$OUT/guest" && tar rf "$OUT/guest-files.occ" dist )
-fi
-
 # ── 4) renderer output (dist/) — served by upstream's own static middleware ──
 if [ -d "$SRC_DIR/dist" ] && [ -n "$(ls -A "$SRC_DIR/dist" 2>/dev/null)" ]; then
   rm -rf "$OUT/guest/dist"
@@ -78,6 +72,15 @@ if [ -d "$SRC_DIR/dist" ] && [ -n "$(ls -A "$SRC_DIR/dist" 2>/dev/null)" ]; then
 else
   echo "warning: $SRC_DIR/dist missing — build the renderer before packing" >&2
 fi
+
+# ── 4b) single payload archive (ONE AssetManager.open() at runtime):
+#      bootstrap + server bundle + manifests + the full renderer dist
+if [ -d "$OUT/guest/dist" ] && [ -n "$(ls -A "$OUT/guest/dist" 2>/dev/null)" ]; then
+  ( cd "$OUT/guest" && tar cf "$OUT/guest-files.occ" bootstrap.sh guest-server.mjs package.json package-lock.json dist )
+else
+  ( cd "$OUT/guest" && tar cf "$OUT/guest-files.occ" bootstrap.sh guest-server.mjs package.json package-lock.json )
+fi
+rm -f "$OUT/guest-files.occ.new"
 
 # ── 5) proot: Termux arm64 build (bionic) + external exec loaders ──
 rm -rf "$STAGE/proot"; mkdir -p "$STAGE/proot"
