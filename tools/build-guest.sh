@@ -76,12 +76,25 @@ fi
 # ── 5) proot: Termux arm64 build (bionic) + external exec loaders ──
 rm -rf "$STAGE/proot"; mkdir -p "$STAGE/proot"
 python3 "$SRC_DIR/tools/fetch-proot.py" "$STAGE/proot"
+
 ( cd "$STAGE/proot" && ar p proot.deb data.tar.xz | tar xJ )
 PROOTDIR="$STAGE/proot/data/data/com.termux/files/usr"
 cp "$PROOTDIR/bin/proot" "$OUT/host/bin/proot"
 cp "$PROOTDIR/libexec/proot/loader" "$OUT/host/libexec/proot/loader"
-[ -f "$PROOTDIR/libexec/proot/loader32" ] && cp "$PROOTDIR/libexec/proot/loader32" "$OUT/host/libexec/proot/loader32"
-chmod 755 "$OUT/host/bin/proot" "$OUT/host/libexec/proot/loader" 2>/dev/null || true
+if [ -f "$PROOTDIR/libexec/proot/loader32" ]; then
+  cp "$PROOTDIR/libexec/proot/loader32" "$OUT/host/libexec/proot/loader32"
+else
+  : > "$OUT/host/libexec/proot/loader32"   # arm64-only guest; 32-bit loader unused
+fi
+if [ -f "$STAGE/proot/talloc.deb" ]; then
+  ( cd "$STAGE/proot" && ar p talloc.deb data.tar.xz | tar xJ ) || true
+fi
+
+# Termux deb payloads carry 0700 dirs/files from their tar — normalize, otherwise
+# the runner user (and gradle) cannot even stat them.
+find "$OUT" -type d -exec chmod 755 {} +
+find "$OUT" -type f -exec chmod 644 {} +
+chmod 755 "$OUT/host/bin/proot" "$OUT/host/libexec/proot/loader" "$OUT/host/libexec/proot/loader32"
 
 # ── 6) Android skin css (injected by the host shell) ──
 cp "$SRC_DIR/mobile/android/android-skin.css" "$OUT/android-skin.css"
