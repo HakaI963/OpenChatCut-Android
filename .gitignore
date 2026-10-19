@@ -107,3 +107,8 @@ public/whisper-cli/
 
 # Agent tooling local state (Command Code taste captures)
 .commandcode/
+
+# ── Android port (HakaI963) ─────────────────────────────
+# The proot guest payload is packed by CI (tools/build-guest.sh); never commit.
+android/app/src/main/assets/occ/
+/android/.gradle/

@@ -30,6 +30,13 @@ export const LLM_PROVIDER_PRESETS = [
     defaultModel: 'gpt-5',
   },
   {
+    id: 'nvidia',
+    label: 'NVIDIA NIM',
+    protocol: 'openai',
+    baseUrl: 'https://integrate.api.nvidia.com/v1',
+    defaultModel: 'nvidia/llama-3.3-nemotron-super-49b-v1.5',
+  },
+  {
     id: 'gemini',
     label: 'Google · Gemini',
     protocol: 'google',

@@ -1,0 +1,88 @@
+/* OpenChatCut — Android skin (injected from the app shell; origin-restricted).
+   Scope: compact top bar with visible buttons, portrait-friendly panels,
+   touch targets ≥ 40px, hides the desktop drag region, keeps every panel. */
+
+/* ── global compactness ─────────────────────────────────────────────────── */
+html, body { overscroll-behavior: none; }
+* { -webkit-tap-highlight-color: transparent; }
+
+/* larger default tap areas */
+button, [role="button"], .cc-tip, .cc-tip-r, input[type="checkbox"] + label,
+.cc-menubar-item, .cc-sideitem {
+  min-width: 34px;
+  min-height: 38px;
+  touch-action: manipulation;
+}
+
+/* ── desktop window titlebar → compact android toolbar ──────────────────── */
+.cc-window-titlebar { touch-action: none !important; -webkit-app-region: unset !important; }
+.cc-topbar {
+  height: auto !important;
+  min-height: 44px;
+  max-height: 92px;
+  flex-wrap: wrap !important;
+  row-gap: 2px;
+  padding: 2px 4px !important;
+}
+.cc-topbar .cc-topbar-title {
+  position: static !important;
+  left: auto !important;
+  transform: none !important;
+  order: 3;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+  font-size: 11px;
+  color: rgba(255,255,255,.7);
+  padding-left: 4px;
+  pointer-events: none;
+}
+.cc-topbar .cc-topbar-actions {
+  flex: 1 1 auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.cc-topbar .cc-topbar-actions::-webkit-scrollbar { display: none; }
+
+/* ── narrow/portrait: compress the editor shell, sticky single panels ───── */
+@media (max-width: 860px) {
+  body { font-size: 13px !important; }
+
+  /* the editor's side panels collapse into horizontal scrollers instead of
+     making everything microscopic */
+  [class*="inspector"], .cc-inspector {
+    max-width: 44vw; min-width: 44vw;
+  }
+
+  /* chat / agent panel readable by default */
+  [class*="chat"], .cc-chat {
+    font-size: 13px !important;
+  }
+
+  /* timeline rows a bit taller for thumb drags */
+  [class*="timeline"] [class*="track"] {
+    min-height: 30px !important;
+  }
+
+  /* everything with tiny 10px labels gets one step up */
+  .cc-tip, .cc-tip-r { font-size: 12px !important; }
+}
+
+@media (max-width: 480px) {
+  body { font-size: 13px !important; }
+  .cc-topbar .cc-topbar-actions button { padding: 6px 8px !important; }
+}
+
+/* modals/sheets never underflow in portrait */
+body > * :is([class*="modal"], [class*="dialog"], [class*="drawer"]) {
+  max-width: 100vw !important;
+  max-height: 92vh !important;
+}
+
+/* text selection handles no longer fight scroll */
+::selection { background: rgba(126,227,197,.35); }

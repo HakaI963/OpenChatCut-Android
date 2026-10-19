@@ -15,6 +15,7 @@ jobs:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       ANDROID_HOME: /usr/local/lib/android/sdk
+
     steps:
       - uses: actions/checkout@v4
 
@@ -23,24 +24,59 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build renderer (tsc + vite, same as upstream build script)
-        run: |
-          npx tsc -b
-          npx vite build --config config/vite.config.ts
-
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Capacitor android scaffold
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck + build renderer (upstream flow)
         run: |
-          npm i --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7
-          npx cap add android
-          npx cap sync android
+          npx tsc -b
+          npx vite build --config config/vite.config.ts
+
+      - name: Install debootstrap (guest rootfs builder)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends debootstrap
+
+      - name: Pack guest into APK assets (rootfs + node + server + dist + proot)
+        run: sudo --preserve-env=PATH,HOME,CI bash tools/build-guest.sh
+
+      - name: Capacitor android runtime (node module for gradle)
+        run: npm i --no-save @capacitor/core@7 @capacitor/android@7
+
+      - name: Smoke test — guest server bundle boots and serves the UI
+        run: |
+          node - <<'JS'
+          const { spawn } = require('node:child_process');
+          const http = require('node:http');
+          const child = spawn('node', ['android/app/src/main/assets/occ/guest/guest-server.mjs'], {
+            env: { ...process.env, OCC_DIST_DIR: 'android/app/src/main/assets/occ/guest/dist' },
+            stdio: ['ignore', 'pipe', 'pipe'],
+          });
+          let out = '';
+          const deadline = setTimeout(() => { console.error(out); child.kill(); process.exit(1); }, 60000);
+          child.stdout.on('data', (d) => { out += d; });
+          child.stderr.on('data', (d) => { out += d; });
+          const tick = setInterval(() => {
+            const m = out.match(/OCC_SERVER_READY (.*\S)/);
+            if (!m) return;
+            const origin = JSON.parse(m[1]).origin;
+            http.get(origin + '/', (res) => {
+              let body = '';
+              res.on('data', (c) => body += c);
+              res.on('end', () => {
+                clearInterval(tick); clearTimeout(deadline);
+                console.log('HTTP', res.statusCode, 'index bytes:', body.length);
+                if (res.statusCode === 200 && body.includes('<')) { child.kill(); process.exit(0); }
+                process.exit(1);
+              });
+            }).on('error', (e) => { console.error(e); process.exit(1); });
+          }, 500);
+          JS
 
       - name: Build APK
         working-directory: android
@@ -66,4 +102,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" out/OpenChatCut-android-debug.apk \
             --repo "${GITHUB_REPOSITORY}" \
             --title "${GITHUB_REF_NAME}" \
-            --notes "OpenChatCut Android port: upstream renderer wrapped in Capacitor (no editor-logic changes)."
+            --notes "OpenChatCut Android — full on-device stack: Debian+Node guest under proot boots upstream's own production server; WebView talks to it on 127.0.0.1. NVIDIA NIM provider configurable in-app (provider settings sheet). No upstream editor logic changed."
