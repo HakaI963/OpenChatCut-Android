@@ -155,13 +155,14 @@ public final class OccAndroid {
                 File nodeDir = new File(work, "node");
 
                 state("copying app payload…");
-                prepareWork(work);
+                prepareWork(base, work);
 
                 state("unpacking Debian rootfs (first run only)…");
                 File rootfsMarker = new File(base, ".rootfs_ok");
                 if (!rootfsMarker.exists()) {
+                    java.util.concurrent.atomic.AtomicInteger rc0 = new java.util.concurrent.atomic.AtomicInteger();
                     TarUtil.extractTgz(act.getAssets().open("occ/guest/rootfs.occ"), rootDir,
-                            n -> state("rootfs …" + n));
+                            n -> { if (rc0.incrementAndGet() % 400 == 0) state("unpacking system files… " + rc0.get()); });
                     Files.write(Paths.get(rootfsMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 } else {
                     state("rootfs already unpacked");
@@ -172,8 +173,9 @@ public final class OccAndroid {
                 state("unpacking Node runtime…");
                 File nodeMarker = new File(work, ".node_ok");
                 if (!nodeMarker.exists()) {
+                    java.util.concurrent.atomic.AtomicInteger rc1 = new java.util.concurrent.atomic.AtomicInteger();
                     TarUtil.extractTgz(act.getAssets().open("occ/guest/node.occ"), nodeDir,
-                            n -> state("node …" + n));
+                            n -> { if (rc1.incrementAndGet() % 200 == 0) state("unpacking runtime… " + rc1.get()); });
                     Files.write(Paths.get(nodeMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 }
                 File nodeBin = new File(nodeDir, "bin/node");
@@ -246,7 +248,7 @@ public final class OccAndroid {
          * Copies the guest payload from APK assets into work/.
          * Gated on the app version so an update re-copies; env file always refreshed.
          */
-        private void prepareWork(File work) throws Exception {
+        private void prepareWork(File base, File work) throws Exception {
             Files.createDirectories(Paths.get(work.getAbsolutePath()));
             String version = version();
             File marker = new File(work, ".payload_version");
@@ -261,6 +263,15 @@ public final class OccAndroid {
                 state("payload copied");
             } else {
                 state("payload up to date");
+            }
+            // the proot launcher (Termux bionic build + external loaders) must exist
+            // under app storage regardless of payload-version (guarded, idempotent)
+            File launcher = new File(base, "host/bin/proot");
+            if (!launcher.exists() || !current.equals(version)) {
+                copyAsset("occ/host/bin/proot", launcher, true);
+                copyAsset("occ/host/libexec/proot/loader", new File(base, "host/libexec/proot/loader"), true);
+                copyAsset("occ/host/libexec/proot/loader32", new File(base, "host/libexec/proot/loader32"), true);
+                state("launcher ready");
             }
             new File(work, "data").mkdirs();
             new File(work, "data/tmp").mkdirs();
