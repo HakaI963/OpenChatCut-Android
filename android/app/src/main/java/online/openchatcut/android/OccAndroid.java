@@ -225,7 +225,7 @@ public final class OccAndroid {
                 }
                 int rc = p.waitFor();
                 if (ORIGIN.get() == null && keepGoing) {
-                    state("FAILED bootstrap exit " + rc)
+                    state("FAILED bootstrap exit " + rc);
                     UI.post(() -> Overlay.failIfAny());
                 }
             } catch (Throwable t) {
