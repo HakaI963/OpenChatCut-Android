@@ -25,12 +25,23 @@ if [ "${SKIP_ROOTFS_BUILD:-0}" = "1" ] && [ -s "$OUT/guest/rootfs.tar.gz" ]; the
   echo "rootfs.tar.gz cached"
 else
   rm -rf "$STAGE"; mkdir -p "$STAGE"
-  debootstrap --variant=minbase --include=libstdc++6 --arch="$ARCH" "$SUITE" \
-    "$STAGE/rootfs" http://deb.debian.org/debian > /tmp/occ-pack-rootfs.log 2>&1
+  DEBOOT="debootstrap"
+  HOSTARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+  if [ "$HOSTARCH" != "$ARCH" ] && command -v qemu-debootstrap > /dev/null 2>&1; then
+    DEBOOT="qemu-debootstrap"   # x86_64 runner building an arm64 rootfs
+  fi
+  echo "host arch: $HOSTARCH  target: $ARCH  debootstrap: $DEBOOT"
+  if ! "$DEBOOT" --variant=minbase --include=libstdc++6 --arch="$ARCH" "$SUITE" \
+      "$STAGE/rootfs" http://deb.debian.org/debian > /tmp/occ-pack-rootfs.log 2>&1; then
+    echo "debootstrap FAILED — last 60 lines:"
+    tail -60 /tmp/occ-pack-rootfs.log
+    exit 1
+  fi
   echo nameserver 1.1.1.1 > "$STAGE/rootfs/etc/resolv.conf"
   echo "OpenChatCut Android" > "$STAGE/rootfs/etc/hostname"
   printf '127.0.0.1\tlocalhost\n' > "$STAGE/rootfs/etc/hosts"
   (cd "$STAGE/rootfs" && tar czf "$OUT/guest/rootfs.tar.gz" .)
+  echo "rootfs.tar.gz: $(du -h "$OUT/guest/rootfs.tar.gz" | cut -f1)"
   rm -rf "$STAGE/rootfs"
 fi
 

@@ -37,13 +37,13 @@ jobs:
           npx tsc -b
           npx vite build --config config/vite.config.ts
 
-      - name: Install debootstrap (guest rootfs builder)
+      - name: Install debootstrap + qemu (guest rootfs builder)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends debootstrap
+          sudo apt-get install -y --no-install-recommends debootstrap qemu-user-static
 
       - name: Pack guest into APK assets (rootfs + node + server + dist + proot)
-        run: sudo --preserve-env=PATH,HOME,CI bash tools/build-guest.sh
+        run: sudo env PATH="$PATH" HOME="$HOME" bash tools/build-guest.sh
 
       - name: Capacitor android runtime (node module for gradle)
         run: npm i --no-save @capacitor/core@7 @capacitor/android@7
