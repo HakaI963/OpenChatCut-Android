@@ -32,3 +32,23 @@ final class WebViewUtil {
         return null;
     }
 }
+
+/** Formatting helpers (flat components, no androidx dependency). */
+final class UIUtil {
+    private UIUtil() {}
+
+    static android.graphics.drawable.GradientDrawable box() {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(android.graphics.Color.parseColor("#151B26"));
+        g.setStroke(1, android.graphics.Color.parseColor("#2A3448"));
+        g.setCornerRadius(10);
+        return g;
+    }
+
+    static android.graphics.drawable.GradientDrawable chip(int color) {
+        android.graphics.drawable.GradientDrawable g = new android.graphics.drawable.GradientDrawable();
+        g.setColor(color);
+        g.setCornerRadius(14);
+        return g;
+    }
+}

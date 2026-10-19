@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -99,7 +98,7 @@ public final class OccAndroid {
         }
         try {
             Files.write(Paths.get(new File(workDir, ".env.local").getAbsolutePath()),
-                    sb.toString().getBytes(StandardCharsets.UTF_8), StandardCopyOption.REPLACE_EXISTING);
+                    sb.toString().getBytes(StandardCharsets.UTF_8));
         } catch (Throwable t) {
             Log.w("OccAndroid", "env write failed", t);
         }
@@ -386,7 +385,7 @@ public final class OccAndroid {
             File parent = dest.getParentFile();
             if (parent != null) Files.createDirectories(Paths.get(parent.getAbsolutePath()));
             try (InputStream in = act.getAssets().open(path)) {
-                Files.copy(in, Paths.get(dest.getAbsolutePath()), StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(in, dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             }
             if (exec) dest.setExecutable(true, false);
         }
