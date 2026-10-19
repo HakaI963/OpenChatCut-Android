@@ -30,7 +30,13 @@ jobs:
           java-version: '21'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          for i in 1 2 3; do
+            if NODE_OPTIONS=--dns-result-order=ipv4first npm ci --no-audit --no-fund; then break; fi
+            if [ "$i" = 3 ]; then echo "npm ci failed after retries"; exit 1; fi
+            echo "attempt $i hit a transient network error — retrying"
+            sleep 12
+          done
 
       - name: Typecheck + build renderer (upstream flow)
         run: |
