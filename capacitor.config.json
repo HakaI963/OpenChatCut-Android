@@ -1,0 +1,12 @@
+{
+  "appId": "online.openchatcut.android",
+  "appName": "OpenChatCut",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "webContentsDebuggingEnabled": false
+  }
+}
