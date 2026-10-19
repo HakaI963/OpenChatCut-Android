@@ -1,0 +1,71 @@
+name: android-apk
+
+on:
+  push:
+    branches: [main]
+    tags: ['android-*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build renderer (tsc + vite, same as upstream build script)
+        run: |
+          npx tsc -b
+          npx vite build --config config/vite.config.ts
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Capacitor android scaffold
+        run: |
+          npm i --no-save @capacitor/cli@7 @capacitor/core@7 @capacitor/android@7
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/OpenChatCut-android-debug.apk
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenChatCut-android-debug
+          path: out/
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/android-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" out/OpenChatCut-android-debug.apk \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "OpenChatCut Android port: upstream renderer ${GITHUB_SHA:0:7} wrapped in Capacitor (no editor-logic changes)."
