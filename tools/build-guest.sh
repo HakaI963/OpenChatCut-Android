@@ -64,6 +64,12 @@ cp "$SRC_DIR/mobile/guest/bootstrap.sh" "$OUT/guest/bootstrap.sh"
 chmod +x "$OUT/guest/bootstrap.sh"
 cp "$SRC_DIR/package.json" "$SRC_DIR/package-lock.json" "$OUT/guest/"
 
+# ── 3b) single payload archive: one AssetManager.open() at runtime ──
+( cd "$OUT/guest" && tar cf "$OUT/guest-files.occ.new" bootstrap.sh guest-server.mjs package.json package-lock.json && mv "$OUT/guest-files.occ.new" "$OUT/guest-files.occ" )
+if [ -d "$OUT/guest/dist" ] && [ -n "$(ls -A "$OUT/guest/dist" 2>/dev/null)" ]; then
+  ( cd "$OUT/guest" && tar rf "$OUT/guest-files.occ" dist )
+fi
+
 # ── 4) renderer output (dist/) — served by upstream's own static middleware ──
 if [ -d "$SRC_DIR/dist" ] && [ -n "$(ls -A "$SRC_DIR/dist" 2>/dev/null)" ]; then
   rm -rf "$OUT/guest/dist"

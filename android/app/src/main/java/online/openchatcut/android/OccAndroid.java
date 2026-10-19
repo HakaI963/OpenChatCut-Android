@@ -254,13 +254,14 @@ public final class OccAndroid {
             File marker = new File(work, ".payload_version");
             String current = marker.exists() ? new String(Files.readAllBytes(Paths.get(marker.getAbsolutePath())), StandardCharsets.UTF_8).trim() : "";
             if (!current.equals(version)) {
-                copyAsset("occ/guest/bootstrap.sh", new File(work, "bootstrap.sh"), true);
-                copyAsset("occ/guest/guest-server.mjs", new File(work, "guest-server.mjs"), false);
-                copyAsset("occ/guest/package.json", new File(work, "package.json"), false);
-                copyAsset("occ/guest/package-lock.json", new File(work, "package-lock.json"), false);
-                copyAssetTree("occ/guest/dist", new File(work, "dist"));
+                // everything (bootstrap, server bundle, manifests, dist/) ships in ONE
+                // archive — a single AssetManager.open(), like rootfs.occ / node.occ
+                java.util.concurrent.atomic.AtomicInteger pf = new java.util.concurrent.atomic.AtomicInteger();
+                TarUtil.extractTgz(act.getAssets().open("occ/guest/guest-files.occ"), work,
+                        n -> { if (pf.incrementAndGet() % 300 == 0) state("copying app payload… " + pf.get()); });
+                new File(work, "bootstrap.sh").setExecutable(true, false);
                 Files.write(Paths.get(marker.getAbsolutePath()), version.getBytes(StandardCharsets.UTF_8));
-                state("payload copied");
+                state("payload copied (" + pf.get() + " files)");
             } else {
                 state("payload up to date");
             }
