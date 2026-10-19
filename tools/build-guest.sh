@@ -95,9 +95,32 @@ if [ -f "$PROOTDIR/libexec/proot/loader32" ]; then
 else
   : > "$OUT/host/libexec/proot/loader32"   # arm64-only guest; 32-bit loader unused
 fi
-if [ -f "$STAGE/proot/talloc.deb" ]; then
-  ( cd "$STAGE/proot" && ar p talloc.deb data.tar.xz | tar xJ ) || true
+
+# shared libraries proot links against (Termux builds carry an RPATH into
+# /data/data/com.termux/... which does not exist here — we ship them ourselves
+# and point LD_LIBRARY_PATH at them)
+mkdir -p "$OUT/host/lib"
+for deb in libtalloc libandroid-shmem; do
+  if [ -f "$STAGE/proot/$deb.deb" ]; then
+    rm -rf "$STAGE/proot/$deb.x"; mkdir -p "$STAGE/proot/$deb.x"
+    ( cd "$STAGE/proot/$deb.x" && ar p "$STAGE/proot/$deb.deb" data.tar.xz | tar xJ )
+    LIBDIR="$STAGE/proot/$deb.x/data/data/com.termux/files/usr/lib"
+    for so in "$LIBDIR"/*.so*; do
+      [ -f "$so" ] || continue
+      base="$(basename "$so")"
+      case "$base" in
+        *.so.*.*) cp -f "$so" "$OUT/host/lib/$base" ;;                     # real file (libtalloc.so.2.5.0)
+        *.so.*)   cp -fL "$so" "$OUT/host/lib/$base" ;;                    # SONAME symlink → copy real content
+        *.so)     cp -fL "$so" "$OUT/host/lib/$base" ;;
+      esac
+    done
+  fi
+done
+# the SONAME the loader asks for: libtalloc.so.2 must exist as a real file
+if [ -f "$OUT/host/lib/libtalloc.so.2.5.0" ] && [ ! -f "$OUT/host/lib/libtalloc.so.2" ]; then
+  cp -f "$OUT/host/lib/libtalloc.so.2.5.0" "$OUT/host/lib/libtalloc.so.2"
 fi
+ls -la "$OUT/host/lib"
 
 # Termux deb payloads carry 0700 dirs/files from their tar — normalize, otherwise
 # the runner user (and gradle) cannot even stat them.

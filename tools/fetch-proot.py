@@ -40,7 +40,7 @@ def main(out: str) -> None:
         if not m:
             continue
         pkg = m.group(1).strip()
-        if pkg not in ("proot", "talloc"):
+        if pkg not in ("proot", "libtalloc", "libandroid-shmem"):
             continue
         fn = re.search(r"^Filename: (.*)$", entry, re.M)
         anc = re.search(r"^Architecture: (.+)$", entry, re.M)
@@ -61,6 +61,8 @@ def main(out: str) -> None:
         print(f"{pkg} {ver.group(1) if ver else '?'} -> {url} ({len(data)} bytes)")
     if "proot" not in picks:
         raise SystemExit("proot package not found")
+    if "libtalloc" not in picks:
+        raise SystemExit("libtalloc package not found (proot links against it)")
 
 
 if __name__ == "__main__":

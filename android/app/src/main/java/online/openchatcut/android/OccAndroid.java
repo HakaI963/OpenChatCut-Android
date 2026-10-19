@@ -195,6 +195,7 @@ public final class OccAndroid {
                 try {
                     ProcessBuilder st = new ProcessBuilder(proot.getAbsolutePath(), "--version");
                     st.redirectErrorStream(true);
+                    st.environment().put("LD_LIBRARY_PATH", new File(base, "host/lib").getAbsolutePath());
                     Process sp = st.start();
                     String out = "";
                     try (java.io.BufferedReader sr = new java.io.BufferedReader(
@@ -231,6 +232,7 @@ public final class OccAndroid {
                 ProcessBuilder pb = new ProcessBuilder(args);
                 pb.redirectErrorStream(true);
                 pb.environment().put("PROOT_TMP_DIR", tmp.getAbsolutePath());
+                pb.environment().put("LD_LIBRARY_PATH", new File(base, "host/lib").getAbsolutePath());
                 synchronized (PROCESS_LOCK) {
                     prootProcess = pb.start();
                 }
@@ -292,12 +294,21 @@ public final class OccAndroid {
             // the proot launcher (Termux bionic build + external loaders) must exist
             // under app storage regardless of payload-version (guarded, idempotent)
             File launcher = new File(base, "host/bin/proot");
+            File libDir = new File(base, "host/lib");
             if (!launcher.exists() || !current.equals(version)) {
                 copyAsset("occ/host/bin/proot", launcher, true);
                 copyAsset("occ/host/libexec/proot/loader", new File(base, "host/libexec/proot/loader"), true);
                 copyAsset("occ/host/libexec/proot/loader32", new File(base, "host/libexec/proot/loader32"), true);
                 state("launcher ready");
             }
+            // Termux binaries carry an RPATH into /data/data/com.termux/... — ship the
+            // libraries they link against and point LD_LIBRARY_PATH at them.
+            copyAssetTree("occ/host/lib", libDir);
+            File libtalloc = new File(libDir, "libtalloc.so.2");
+            if (!libtalloc.exists()) {
+                throw new java.io.FileNotFoundException("libtalloc.so.2 missing from host payload");
+            }
+            state("host libraries ready (" + libDir.list().length + ")");
             new File(work, "data").mkdirs();
             new File(work, "data/tmp").mkdirs();
             // invalidate markers that refer to shipped payloads when payload changes
@@ -320,6 +331,7 @@ public final class OccAndroid {
                     "occ/host/bin/proot",
                     "occ/host/libexec/proot/loader",
                     "occ/host/libexec/proot/loader32",
+                    "occ/host/lib/libtalloc.so.2",
             };
             StringBuilder report = new StringBuilder();
             for (String a : mustOpen) {
