@@ -40,6 +40,7 @@ public final class OccAndroid {
 
     // ───────────────────────────────────────────────────────────── lifecycle
     static void bind(Activity a) {
+        Host.ATTEMPTS_RESET();
         activity = a;
         if (overlay == null || overlay.owning() != a) overlay = new Overlay(a);
         overlay.show();
@@ -114,6 +115,7 @@ public final class OccAndroid {
 
         private final Activity act;
         private volatile boolean keepGoing = true;
+        private static volatile int ATTEMPTS = 0;
 
         private Host(Activity a) {
             setDaemon(true);
@@ -126,6 +128,8 @@ public final class OccAndroid {
         }
 
         static String origin() { return ORIGIN.get(); }
+
+        static void ATTEMPTS_RESET() { ATTEMPTS = 0; }
 
         static void resetOrigin() { ORIGIN.set(null); }
 
@@ -162,6 +166,8 @@ public final class OccAndroid {
                 } else {
                     state("rootfs already unpacked");
                 }
+
+                fixDns(rootDir);
 
                 state("unpacking Node runtime…");
                 File nodeMarker = new File(work, ".node_ok");
@@ -226,13 +232,13 @@ public final class OccAndroid {
                 int rc = p.waitFor();
                 if (ORIGIN.get() == null && keepGoing) {
                     state("FAILED bootstrap exit " + rc);
-                    UI.post(() -> Overlay.failIfAny());
+                    autoRetry();
                 }
             } catch (Throwable t) {
-                if (!keepGoing) return;
+                if (!keepGoing && isInterrupted()) return;
                 state("FAILED " + t);
                 Log.w("OccAndroid", "host thread failed", t);
-                UI.post(() -> Overlay.failIfAny());
+                autoRetry();
             }
         }
 
@@ -262,6 +268,34 @@ public final class OccAndroid {
             if (!current.equals(version)) {
                 File nodeMarker = new File(work, ".node_ok");
                 if (!current.isEmpty()) nodeMarker.delete();   // re-extract node on payload update
+            }
+        }
+
+        /**
+         * The built-in resolv.conf uses 1.1.1.1 which some carriers blacklist.
+         * Mirror the phone's active DNS (plus public fallbacks) into the guest.
+         */
+        private void fixDns(File rootDir) {
+            try {
+                StringBuilder dns = new StringBuilder();
+                android.net.ConnectivityManager cm = (android.net.ConnectivityManager)
+                        act.getSystemService(Context.CONNECTIVITY_SERVICE);
+                android.net.Network nw = cm == null ? null : cm.getActiveNetwork();
+                android.net.LinkProperties lp = nw == null ? null : cm.getLinkProperties(nw);
+                if (lp != null) {
+                    for (java.net.InetAddress a : lp.getDnsServers()) {
+                        dns.append("nameserver ").append(a.getHostAddress()).append('\n');
+                    }
+                }
+                dns.append("nameserver 1.1.1.1\n").append("nameserver 8.8.8.8\n");
+                File etc = new File(rootDir, "etc");
+                File f = new File(etc, "resolv.conf");
+                if (etc.exists() || etc.mkdirs()) {
+                    Files.write(Paths.get(f.getAbsolutePath()),
+                            dns.toString().getBytes(StandardCharsets.UTF_8));
+                }
+            } catch (Throwable t) {
+                log("dns fixup said: " + t);
             }
         }
 
@@ -306,6 +340,13 @@ public final class OccAndroid {
             } catch (Throwable t) {
                 return null;
             }
+        }
+
+        private void autoRetry() {
+            final int n = ++ATTEMPTS;
+            if (n >= 2 || ORIGIN.get() != null) return;   // two tries max per app run
+            log("retrying automatically (attempt " + (n + 1) + ")…");
+            UI.postDelayed(() -> restartHost(), 2500);
         }
 
         private void state(String s) {

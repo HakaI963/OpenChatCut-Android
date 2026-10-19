@@ -41,6 +41,7 @@ final class Overlay {
         root.setBackgroundColor(Color.parseColor("#B210141C"));
         root.setPadding((int) (16 * d), (int) (9 * d), (int) (16 * d), (int) (9 * d));
         root.setClickable(true);
+        root.setOnClickListener(v -> showLogDialog(act));
 
         spinner = new View(a);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams((int) (14 * d), (int) (14 * d));
@@ -84,17 +85,15 @@ final class Overlay {
         if (text == null || act == null || act.isFinishing()) return;
         final String s;
         if (msg.startsWith("FAILED")) {
-            s = "engine setup failed — reopening the app retries: " + shortMsg(msg);
-        } else if (msg.startsWith("rootfs …")) {
+            s = "engine setup failed — tap this bar for details";
+        } else if (msg.startsWith("rootfs …") || msg.startsWith("unpacking D")) {
             s = "unpacking system files…";
-        } else if (msg.startsWith("node …")) {
+        } else if (msg.startsWith("node …") || msg.startsWith("unpacking N")) {
             s = "unpacking runtime…";
         } else if (msg.startsWith("installing deps") || msg.startsWith("OCC_LINE installing")) {
             s = "fetching runtime dependencies (one time)…";
         } else if (msg.contains("OCC_LINE")) {
             s = "starting engine…";
-        } else if (msg.startsWith("Engine online")) {
-            s = "done";
         } else {
             s = msg;
         }
@@ -105,8 +104,16 @@ final class Overlay {
         });
     }
 
-    private static String shortMsg(String msg) {
-        return msg.length() > 40 ? "see logcat (OccAndroid)." : msg;
+    /** The real failure text: last chunk of the boot log, in a scrollable dialog. */
+    static void showLogDialog(final Activity a) {
+        String tail = OccAndroid.bootLog();
+        if (tail.length() > 6000) tail = "…\n" + tail.substring(tail.length() - 6000);
+        final String body = tail;
+        runOn(a, () -> new android.app.AlertDialog.Builder(a)
+                .setTitle("Engine bootstrap log")
+                .setMessage(body.isEmpty() ? "(no log)" : body)
+                .setPositiveButton("close", null)
+                .show());
     }
 
     static void dismissIfAny() {

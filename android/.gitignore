@@ -93,8 +93,10 @@ lint/tmp/
 capacitor-cordova-android-plugins
 !capacitor-cordova-android-plugins/
 
-# Copied web assets
+# Copied web assets (our start page ships; cap-sync content stays out)
 app/src/main/assets/public
+!app/src/main/assets/public/
+
 
 # Generated Config files (committed: the bridge reads them from assets)
 !app/src/main/assets/capacitor.config.json
