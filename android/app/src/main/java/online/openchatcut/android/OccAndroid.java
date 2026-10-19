@@ -3,7 +3,6 @@ package online.openchatcut.android;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
-import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Handler;
 import android.os.Looper;
@@ -27,12 +26,9 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class OccAndroid {
 
-    static final String PREFS = "occ_android";
-    static final String KEY_NVIDIA_KEY = "nvidiaApiKey";
-    static final String KEY_NVIDIA_URL = "nvidiaBaseUrl";
-    static final String KEY_NVIDIA_MODEL = "nvidiaModel";
-    static final String DEFAULT_NIM_URL = "https://integrate.api.nvidia.com/v1";
-    static final String DEFAULT_NIM_MODEL = "nvidia/llama-3.3-nemotron-super-49b-v1.5";
+    // Provider keys are managed inside OpenChatCut's own Settings → agent providers
+    // list (NVIDIA NIM included) and persist to the guest's .env.local, exactly as on
+    // the desktop app. Nothing Android-side to configure.
 
     static final Handler UI = new Handler(Looper.getMainLooper());
     private static Host host;
@@ -79,91 +75,6 @@ public final class OccAndroid {
     }
 
     // ───────────────────────────────────────────────────────────── settings
-    static SharedPreferences prefs(Context c) {
-        return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-    }
-
-    /** Writes /occ/.env.local — the exact keystore seeding file the desktop app uses. */
-    static void writeEnvFile(File workDir, Context c) {
-        SharedPreferences p = prefs(c);
-        String key = p.getString(KEY_NVIDIA_KEY, "").trim();
-        String url = p.getString(KEY_NVIDIA_URL, "").trim();
-        String model = p.getString(KEY_NVIDIA_MODEL, "").trim();
-        StringBuilder sb = new StringBuilder();
-        if (!key.isEmpty()) {
-            sb.append("LLM_PROVIDER=nvidia\n");
-            sb.append("LLM_NVIDIA_API_KEY=").append(key).append('\n');
-            sb.append("LLM_NVIDIA_BASE_URL=").append(url.isEmpty() ? DEFAULT_NIM_URL : url).append('\n');
-            sb.append("LLM_NVIDIA_MODEL=").append(model.isEmpty() ? DEFAULT_NIM_MODEL : model).append('\n');
-        }
-        try {
-            Files.write(Paths.get(new File(workDir, ".env.local").getAbsolutePath()),
-                    sb.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (Throwable t) {
-            Log.w("OccAndroid", "env write failed", t);
-        }
-    }
-
-    static void openProviderSettings(Activity a) {
-        final SharedPreferences p = prefs(a);
-        final android.widget.EditText keyIn = new android.widget.EditText(a);
-        final android.widget.EditText urlIn = new android.widget.EditText(a);
-        final android.widget.EditText modelIn = new android.widget.EditText(a);
-        keyIn.setHint("nvapi-…");
-        urlIn.setHint(DEFAULT_NIM_URL);
-        modelIn.setHint(DEFAULT_NIM_MODEL);
-        keyIn.setText(p.getString(KEY_NVIDIA_KEY, ""));
-        urlIn.setText(p.getString(KEY_NVIDIA_URL, ""));
-        modelIn.setText(p.getString(KEY_NVIDIA_MODEL, ""));
-        keyIn.setSingleLine(true);
-        urlIn.setSingleLine(true);
-        modelIn.setSingleLine(true);
-
-        android.widget.LinearLayout box = new android.widget.LinearLayout(a);
-        box.setOrientation(android.widget.LinearLayout.VERTICAL);
-        float d = a.getResources().getDisplayMetrics().density;
-        box.setPadding((int) (16 * d), (int) (8 * d), (int) (16 * d), 0);
-        box.addView(field(a, "NVIDIA NIM · API key", keyIn));
-        box.addView(field(a, "Endpoint (URL)", urlIn));
-        box.addView(field(a, "Model", modelIn));
-
-        new AlertDialog.Builder(a)
-                .setTitle("Provider — NVIDIA NIM")
-                .setView(box)
-                .setPositiveButton("save", (dlg, w) -> {
-                    p.edit()
-                            .putString(KEY_NVIDIA_KEY, keyIn.getText().toString().trim())
-                            .putString(KEY_NVIDIA_URL, urlIn.getText().toString().trim())
-                            .putString(KEY_NVIDIA_MODEL, modelIn.getText().toString().trim())
-                            .apply();
-                    dlg.dismiss();
-                    android.widget.Toast.makeText(a, "saved — restarting server…", android.widget.Toast.LENGTH_SHORT).show();
-                    restartHost();
-                })
-                .setNegativeButton("cancel", null)
-                .show();
-    }
-
-    private static android.view.View field(Activity a, String label, android.widget.EditText in) {
-        float d = a.getResources().getDisplayMetrics().density;
-        android.widget.LinearLayout v = new android.widget.LinearLayout(a);
-        v.setOrientation(android.widget.LinearLayout.VERTICAL);
-        android.widget.TextView t = new android.widget.TextView(a);
-        t.setText(label);
-        t.setTextSize(11);
-        t.setTextColor(Color.parseColor("#7EE3C5"));
-        t.setPadding(0, (int) (10 * d), 0, (int) (3 * d));
-        v.addView(t);
-        in.setTextColor(Color.WHITE);
-        in.setTextSize(13);
-        in.setBackground(UIUtil.box());
-        android.widget.LinearLayout.LayoutParams et =
-                new android.widget.LinearLayout.LayoutParams(-1, -2);
-        et.topMargin = (int) (2 * d);
-        v.addView(in, et);
-        return v;
-    }
-
     // ───────────────────────────────────────────────────────────── logging
     public static String bootLog() {
         synchronized (Host.LOG) {
@@ -245,7 +156,7 @@ public final class OccAndroid {
                 state("unpacking Debian rootfs (first run only)…");
                 File rootfsMarker = new File(base, ".rootfs_ok");
                 if (!rootfsMarker.exists()) {
-                    TarUtil.extractTgz(act.getAssets().open("occ/guest/rootfs.tar.gz"), rootDir,
+                    TarUtil.extractTgz(act.getAssets().open("occ/guest/rootfs.tar"), rootDir,
                             n -> state("rootfs …" + n));
                     Files.write(Paths.get(rootfsMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 } else {
@@ -255,14 +166,13 @@ public final class OccAndroid {
                 state("unpacking Node runtime…");
                 File nodeMarker = new File(work, ".node_ok");
                 if (!nodeMarker.exists()) {
-                    TarUtil.extractTgz(act.getAssets().open("occ/guest/node.tar.gz"), nodeDir,
+                    TarUtil.extractTgz(act.getAssets().open("occ/guest/node.tar"), nodeDir,
                             n -> state("node …" + n));
                     Files.write(Paths.get(nodeMarker.getAbsolutePath()), "ok".getBytes(StandardCharsets.UTF_8));
                 }
                 File nodeBin = new File(nodeDir, "bin/node");
                 nodeBin.setExecutable(true, false);
 
-                writeEnvFile(work, act);
 
                 state("starting OpenChatCut server…");
                 File proot = new File(base, "host/bin/proot");
@@ -315,7 +225,7 @@ public final class OccAndroid {
                 }
                 int rc = p.waitFor();
                 if (ORIGIN.get() == null && keepGoing) {
-                    state("FAILED: bootstrap exited (" + rc + ") — see /occ/data/npm.log in log below");
+                    state("FAILED bootstrap exit " + rc)
                     UI.post(() -> Overlay.failIfAny());
                 }
             } catch (Throwable t) {
@@ -346,8 +256,6 @@ public final class OccAndroid {
             } else {
                 state("payload up to date");
             }
-            // always fresh: user provider settings feed this file
-            writeEnvFile(work, act);
             new File(work, "data").mkdirs();
             new File(work, "data/tmp").mkdirs();
             // invalidate markers that refer to shipped payloads when payload changes
