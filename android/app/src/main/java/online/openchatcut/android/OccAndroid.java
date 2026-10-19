@@ -190,6 +190,28 @@ public final class OccAndroid {
                 new File(base, "host/libexec/proot/loader").setExecutable(true, false);
                 new File(base, "host/libexec/proot/loader32").setExecutable(true, false);
 
+                // launcher self-test: prove the Termux proot build actually executes
+                // on this device BEFORE the long bootstrap, so failures print here.
+                try {
+                    ProcessBuilder st = new ProcessBuilder(proot.getAbsolutePath(), "--version");
+                    st.redirectErrorStream(true);
+                    Process sp = st.start();
+                    String out = "";
+                    try (java.io.BufferedReader sr = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(sp.getInputStream(), StandardCharsets.UTF_8))) {
+                        String l;
+                        while ((l = sr.readLine()) != null) out += l + " ";
+                    }
+                    int src = sp.waitFor();
+                    log("proot self-test: exit " + src + " out: " + out.trim());
+                    if (src != 0) throw new java.io.IOException("proot self-test failed (exit " + src + ")");
+                } catch (java.io.IOException e) {
+                    state("FAILED " + e);
+                    log("proot exec check detail: " + e.getMessage());
+                    autoRetry();
+                    return;
+                }
+
                 File tmp = new File(act.getCacheDir(), "proot-tmp");
                 tmp.mkdirs();
 
