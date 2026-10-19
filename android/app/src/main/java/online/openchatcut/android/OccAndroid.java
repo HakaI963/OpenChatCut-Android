@@ -157,6 +157,8 @@ public final class OccAndroid {
                 state("copying app payload…");
                 prepareWork(base, work);
 
+                verifyAssets(base, work);
+
                 state("unpacking Debian rootfs (first run only)…");
                 File rootfsMarker = new File(base, ".rootfs_ok");
                 if (!rootfsMarker.exists()) {
@@ -257,7 +259,7 @@ public final class OccAndroid {
                 // everything (bootstrap, server bundle, manifests, dist/) ships in ONE
                 // archive — a single AssetManager.open(), like rootfs.occ / node.occ
                 java.util.concurrent.atomic.AtomicInteger pf = new java.util.concurrent.atomic.AtomicInteger();
-                TarUtil.extractTgz(act.getAssets().open("occ/guest/guest-files.occ"), work,
+                TarUtil.extractTgz(act.getAssets().open("occ/guest-files.occ"), work,
                         n -> { if (pf.incrementAndGet() % 300 == 0) state("copying app payload… " + pf.get()); });
                 new File(work, "bootstrap.sh").setExecutable(true, false);
                 Files.write(Paths.get(marker.getAbsolutePath()), version.getBytes(StandardCharsets.UTF_8));
@@ -287,6 +289,42 @@ public final class OccAndroid {
          * The built-in resolv.conf uses 1.1.1.1 which some carriers blacklist.
          * Mirror the phone's active DNS (plus public fallbacks) into the guest.
          */
+        /** Hard pre-flight: every asset the boot path depends on, opened and counted. */
+        private void verifyAssets(File base, File work) throws Exception {
+            String[] mustOpen = {
+                    "occ/guest-files.occ",
+                    "occ/guest/rootfs.occ",
+                    "occ/guest/node.occ",
+                    "occ/host/bin/proot",
+                    "occ/host/libexec/proot/loader",
+                    "occ/host/libexec/proot/loader32",
+            };
+            StringBuilder report = new StringBuilder();
+            for (String a : mustOpen) {
+                try (InputStream in = act.getAssets().open(a)) {
+                    long total = 0;
+                    byte[] buf = new byte[65536];
+                    int n;
+                    while (total < 65536 && (n = in.read(buf)) > 0) total += n;   // 64KB probe is enough
+                    report.append("asset ok ").append(a).append(" (probe ").append(total / 1024).append(" KB)\n");
+                } catch (Throwable t) {
+                    report.append("asset MISSING ").append(a).append(" — ").append(t).append('\n');
+                }
+            }
+            File[] mustExist = {
+                    new File(work, "bootstrap.sh"),
+                    new File(work, "guest-server.mjs"),
+                    new File(work, "package.json"),
+                    new File(work, "package-lock.json"),
+                    new File(work, "dist/index.html"),
+                    new File(base, "host/bin/proot"),
+            };
+            for (File f : mustExist) {
+                if (!f.exists()) report.append("pre-flight FAILED: ").append(f.getAbsolutePath()).append('\n');
+            }
+            for (String line : report.toString().split("\n")) log(line);
+        }
+
         private void fixDns(File rootDir) {
             try {
                 StringBuilder dns = new StringBuilder();
